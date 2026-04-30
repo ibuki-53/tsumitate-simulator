@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>積立投資シミュレーター</title>
+    <title>生涯資産シミュレーター（積立＆取崩）</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --primary: #3498db;
-            --secondary: #2ecc71;
-            --danger: #e74c3c;
+            --primary: #3498db;     /* 積立カラー */
+            --secondary: #e67e22;   /* 取崩カラー */
             --bg: #f8fafc;
             --card-bg: #ffffff;
             --text: #1e293b;
@@ -17,7 +16,7 @@
         body {
             font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
             padding: 20px;
-            max-width: 900px;
+            max-width: 1000px;
             margin: auto;
             background-color: var(--bg);
             color: var(--text);
@@ -42,9 +41,11 @@
         }
         #chartWrapper {
             position: relative;
-            height: 350px;
+            height: 400px;
             width: 100%;
         }
+        
+        /* サマリー（結果）表示エリア */
         .summary {
             display: flex;
             justify-content: space-around;
@@ -52,32 +53,37 @@
             padding-top: 20px;
             border-top: 1px solid #e2e8f0;
         }
-        .summary-item { text-align: center; }
-        
-        /* ↓ ここを濃く・太く変更しました ↓ */
-        .summary-label { 
-            font-size: 0.95em; 
-            color: var(--text); 
-            font-weight: bold;
-            margin-bottom: 5px; 
-        }
-        /* ↑ 変更ここまで ↑ */
+        .summary-item { text-align: center; width: 33%; }
+        .summary-label { font-size: 0.95em; color: var(--text); font-weight: bold; margin-bottom: 5px; }
+        .summary-value { font-size: 1.4em; font-weight: bold; }
+        .acc-color { color: var(--primary); }
+        .with-color { color: var(--secondary); }
+        .alert-color { color: #e74c3c; }
 
-        .summary-value { font-size: 1.3em; font-weight: bold; }
-        
-        .total-color { color: var(--danger); }
-        .principal-color { color: var(--primary); }
-        .interest-color { color: var(--secondary); }
-
-        .input-stack {
-            display: flex;
-            flex-direction: column;
+        /* 入力エリアのレイアウト（PCは2列、スマホは1列） */
+        .input-sections {
+            display: grid;
+            grid-template-columns: 1fr;
             gap: 20px;
         }
+        @media (min-width: 768px) {
+            .input-sections { grid-template-columns: 1fr 1fr; }
+        }
+        .section-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .section-title.acc { border-color: var(--primary); color: var(--primary); }
+        .section-title.with { border-color: var(--secondary); color: var(--secondary); }
+
         .input-group {
             background: #f1f5f9;
             padding: 15px;
             border-radius: 12px;
+            margin-bottom: 15px;
         }
         .input-header {
             display: flex;
@@ -85,9 +91,10 @@
             align-items: center;
             margin-bottom: 10px;
             font-weight: bold;
+            font-size: 0.9em;
         }
         .number-input {
-            width: 120px;
+            width: 100px;
             padding: 8px;
             font-size: 1em;
             text-align: right;
@@ -95,8 +102,7 @@
             border-radius: 6px;
             outline: none;
         }
-        .number-input:focus { border-color: var(--primary); }
-        .input-suffix { margin-left: 5px; font-weight: normal; color: #64748b; }
+        .input-suffix { margin-left: 5px; font-weight: normal; color: #64748b; font-size: 0.9em;}
         input[type="range"] {
             width: 100%;
             height: 6px;
@@ -105,178 +111,245 @@
             appearance: none;
             outline: none;
         }
-        input[type="range"]::-webkit-slider-thumb {
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            background: var(--primary);
-            border-radius: 50%;
-            cursor: pointer;
+        /* スライダーのつまみの色を変える */
+        .slider-acc::-webkit-slider-thumb {
+            appearance: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: var(--primary);
+        }
+        .slider-with::-webkit-slider-thumb {
+            appearance: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: var(--secondary);
         }
     </style>
 </head>
 <body>
 
     <div class="container">
+        <!-- グラフと結果 -->
         <div class="card">
-            <h2>積立資産の推移予測</h2>
+            <h2>生涯資産シミュレーター（積立＆取崩）</h2>
             <div id="chartWrapper">
                 <canvas id="simulationChart"></canvas>
             </div>
             
             <div class="summary">
                 <div class="summary-item">
-                    <div class="summary-label">最終積立金額</div>
-                    <div class="summary-value total-color" id="totalValue">0 円</div>
+                    <div class="summary-label">積立完了時の資産</div>
+                    <div class="summary-value acc-color" id="peakValue">0 円</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-label">元本</div>
-                    <div class="summary-value principal-color" id="principalValue">0 円</div>
+                    <div class="summary-label">最終残高</div>
+                    <div class="summary-value with-color" id="finalValue">0 円</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-label">運用益</div>
-                    <div class="summary-value interest-color" id="interestValue">0 円</div>
+                    <div class="summary-label">資産寿命</div>
+                    <div class="summary-value" id="depletionValue">枯渇なし</div>
                 </div>
             </div>
         </div>
 
-        <div class="card">
-            <div class="input-stack">
-                <div class="input-group">
-                    <div class="input-header">
-                        <label>毎月の積立額</label>
-                        <div>
-                            <input type="number" id="amountNumber" class="number-input" value="30000" min="1000" step="1000">
-                            <span class="input-suffix">円</span>
-                        </div>
-                    </div>
-                    <input type="range" id="amountRange" min="1000" max="500000" step="1000" value="30000">
-                </div>
-
-                <div class="input-group">
-                    <div class="input-header">
-                        <label>利回り(年率)</label>
-                        <div>
-                            <input type="number" id="rateNumber" class="number-input" value="5.0" step="0.1" min="0">
-                            <span class="input-suffix">％</span>
-                        </div>
-                    </div>
-                    <input type="range" id="rateRange" min="0" max="20" step="0.1" value="5.0">
-                </div>
-
+        <!-- 入力パラメータ -->
+        <div class="card input-sections">
+            
+            <!-- 積立フェーズ設定 -->
+            <div>
+                <div class="section-title acc">▼ 積立フェーズ</div>
                 <div class="input-group">
                     <div class="input-header">
                         <label>積立期間</label>
-                        <div>
-                            <input type="number" id="yearsNumber" class="number-input" value="20" min="1">
-                            <span class="input-suffix">年</span>
-                        </div>
+                        <div><input type="number" id="accYearsNum" class="number-input" value="20" min="0" max="50"><span class="input-suffix">年</span></div>
                     </div>
-                    <input type="range" id="yearsRange" min="1" max="50" step="1" value="20">
+                    <input type="range" id="accYearsRange" class="slider-acc" min="0" max="50" step="1" value="20">
+                </div>
+                <div class="input-group">
+                    <div class="input-header">
+                        <label>毎月の積立額</label>
+                        <div><input type="number" id="accAmountNum" class="number-input" value="30000" min="0" step="1000"><span class="input-suffix">円</span></div>
+                    </div>
+                    <input type="range" id="accAmountRange" class="slider-acc" min="0" max="300000" step="1000" value="30000">
+                </div>
+                <div class="input-group">
+                    <div class="input-header">
+                        <label>運用利回り(年率)</label>
+                        <div><input type="number" id="accRateNum" class="number-input" value="5.0" step="0.1" min="0"><span class="input-suffix">％</span></div>
+                    </div>
+                    <input type="range" id="accRateRange" class="slider-acc" min="0" max="15" step="0.1" value="5.0">
                 </div>
             </div>
+
+            <!-- 取崩フェーズ設定 -->
+            <div>
+                <div class="section-title with">▼ 取崩フェーズ</div>
+                <div class="input-group">
+                    <div class="input-header">
+                        <label>取崩期間</label>
+                        <div><input type="number" id="withYearsNum" class="number-input" value="20" min="0" max="50"><span class="input-suffix">年</span></div>
+                    </div>
+                    <input type="range" id="withYearsRange" class="slider-with" min="0" max="50" step="1" value="20">
+                </div>
+                <div class="input-group">
+                    <div class="input-header">
+                        <label>毎月の取崩額</label>
+                        <div><input type="number" id="withAmountNum" class="number-input" value="80000" min="0" step="1000"><span class="input-suffix">円</span></div>
+                    </div>
+                    <input type="range" id="withAmountRange" class="slider-with" min="0" max="500000" step="1000" value="80000">
+                </div>
+                <div class="input-group">
+                    <div class="input-header">
+                        <label>運用利回り(年率)</label>
+                        <div><input type="number" id="withRateNum" class="number-input" value="3.0" step="0.1" min="0"><span class="input-suffix">％</span></div>
+                    </div>
+                    <input type="range" id="withRateRange" class="slider-with" min="0" max="15" step="0.1" value="3.0">
+                </div>
+            </div>
+
         </div>
     </div>
 
     <script>
-        const elements = {
-            amount: { number: document.getElementById('amountNumber'), range: document.getElementById('amountRange') },
-            rate: { number: document.getElementById('rateNumber'), range: document.getElementById('rateRange') },
-            years: { number: document.getElementById('yearsNumber'), range: document.getElementById('yearsRange') }
+        // DOM要素の取得
+        const els = {
+            accYears: { n: document.getElementById('accYearsNum'), r: document.getElementById('accYearsRange') },
+            accAmount: { n: document.getElementById('accAmountNum'), r: document.getElementById('accAmountRange') },
+            accRate: { n: document.getElementById('accRateNum'), r: document.getElementById('accRateRange') },
+            withYears: { n: document.getElementById('withYearsNum'), r: document.getElementById('withYearsRange') },
+            withAmount: { n: document.getElementById('withAmountNum'), r: document.getElementById('withAmountRange') },
+            withRate: { n: document.getElementById('withRateNum'), r: document.getElementById('withRateRange') }
         };
         const summary = {
-            total: document.getElementById('totalValue'),
-            principal: document.getElementById('principalValue'),
-            interest: document.getElementById('interestValue')
+            peak: document.getElementById('peakValue'),
+            final: document.getElementById('finalValue'),
+            depletion: document.getElementById('depletionValue')
         };
 
         let chart = null;
 
         function update() {
-            const P = parseFloat(elements.amount.number.value) || 0;
-            const annualRate = parseFloat(elements.rate.number.value) || 0;
-            const years = parseInt(elements.years.number.value) || 0;
-            const r = annualRate / 100 / 12;
+            // パラメータ取得
+            const aY = parseInt(els.accYears.n.value) || 0;
+            const aP = parseFloat(els.accAmount.n.value) || 0;
+            const aR = (parseFloat(els.accRate.n.value) || 0) / 100 / 12;
+            
+            const wY = parseInt(els.withYears.n.value) || 0;
+            const wP = parseFloat(els.withAmount.n.value) || 0;
+            const wR = (parseFloat(els.withRate.n.value) || 0) / 100 / 12;
 
-            let labels = [], pData = [], iData = [];
-            for (let y = 0; y <= years; y++) {
-                labels.push(`${y}年`);
-                const m = y * 12;
-                const p = P * m;
-                const t = r === 0 ? p : P * ((Math.pow(1 + r, m) - 1) / r);
-                pData.push(Math.floor(p));
-                iData.push(Math.floor(t - p));
+            let labels = [];
+            let accData = [];
+            let withData = [];
+            let balance = 0;
+            let depletionYear = null;
+
+            // --- 積立フェーズの計算 ---
+            for (let y = 0; y <= aY; y++) {
+                labels.push(`${y}年目`);
+                if (y === 0) {
+                    accData.push(balance);
+                    withData.push(null);
+                    continue;
+                }
+                for (let m = 0; m < 12; m++) {
+                    balance = balance * (1 + aR) + aP;
+                }
+                accData.push(Math.floor(balance));
+                // 積立の最終年のみ、取崩データのスタート地点として接続する
+                withData.push(y === aY ? Math.floor(balance) : null);
             }
 
-            summary.total.textContent = Math.floor(pData[years] + iData[years]).toLocaleString() + ' 円';
-            summary.principal.textContent = pData[years].toLocaleString() + ' 円';
-            summary.interest.textContent = iData[years].toLocaleString() + ' 円';
+            const peakBalance = balance;
 
-            renderChart(labels, pData, iData);
+            // --- 取崩フェーズの計算 ---
+            for (let y = 1; y <= wY; y++) {
+                labels.push(`${aY + y}年目`);
+                
+                if (balance <= 0) {
+                    accData.push(null);
+                    withData.push(0);
+                    continue;
+                }
+
+                for (let m = 0; m < 12; m++) {
+                    balance = balance * (1 + wR) - wP;
+                    if (balance < 0) {
+                        balance = 0;
+                        if (!depletionYear) depletionYear = aY + y; // 初めて枯渇した年を記録
+                    }
+                }
+                accData.push(null);
+                withData.push(Math.floor(balance));
+            }
+
+            // サマリーの更新
+            summary.peak.textContent = Math.floor(peakBalance).toLocaleString() + ' 円';
+            summary.final.textContent = Math.floor(balance).toLocaleString() + ' 円';
+            
+            if (depletionYear) {
+                summary.depletion.textContent = `${depletionYear}年目で枯渇`;
+                summary.depletion.className = 'summary-value alert-color';
+            } else {
+                summary.depletion.textContent = '枯渇なし';
+                summary.depletion.className = 'summary-value';
+            }
+
+            renderChart(labels, accData, withData);
         }
 
-        function renderChart(labels, pData, iData) {
+        function renderChart(labels, accData, withData) {
             const ctx = document.getElementById('simulationChart').getContext('2d');
             if (chart) chart.destroy();
             
-            const darkTextColor = '#1e293b';
-            const fontSettings = {
-                weight: 'bold',
-                family: "'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif"
-            };
+            const darkText = '#1e293b';
+            const fontSettings = { weight: 'bold', family: "'Helvetica Neue', Arial, sans-serif" };
 
             chart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [
-                        { label: '元本', data: pData, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.4, pointRadius: 0 },
-                        { label: '運用益', data: iData, borderColor: '#2ecc71', backgroundColor: 'rgba(46, 204, 113, 0.4)', fill: true, tension: 0.4, pointRadius: 0 }
+                        { 
+                            label: '積立フェーズ', 
+                            data: accData, 
+                            borderColor: '#3498db', 
+                            backgroundColor: 'rgba(52, 152, 219, 0.2)', 
+                            fill: true, 
+                            tension: 0.1, 
+                            pointRadius: 0 
+                        },
+                        { 
+                            label: '取崩フェーズ', 
+                            data: withData, 
+                            borderColor: '#e67e22', 
+                            backgroundColor: 'rgba(230, 126, 34, 0.2)', 
+                            fill: true, 
+                            tension: 0.1, 
+                            pointRadius: 0 
+                        }
                     ]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    color: darkTextColor,
+                    color: darkText,
                     interaction: { mode: 'index', intersect: false },
                     plugins: { 
-                        legend: {
-                            labels: {
-                                color: darkTextColor,
-                                font: fontSettings
-                            }
-                        },
-                        tooltip: { 
-                            callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString() + '円' } 
-                        } 
+                        legend: { labels: { color: darkText, font: fontSettings } },
+                        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString() + '円' } } 
                     },
                     scales: { 
-                        x: {
-                            ticks: {
-                                color: darkTextColor,
-                                font: fontSettings
-                            }
-                        },
+                        x: { ticks: { color: darkText, font: fontSettings, maxTicksLimit: 15 } },
                         y: { 
-                            stacked: true, 
-                            ticks: { 
-                                color: darkTextColor,
-                                font: fontSettings,
-                                callback: v => v.toLocaleString() + '円' 
-                            } 
+                            beginAtZero: true,
+                            ticks: { color: darkText, font: fontSettings, callback: v => v.toLocaleString() + '円' } 
                         } 
                     }
                 }
             });
         }
 
-        function sync(num, range) {
-            range.addEventListener('input', () => { num.value = range.value; update(); });
-            num.addEventListener('input', () => { range.value = num.value; update(); });
+        function sync(el) {
+            el.r.addEventListener('input', () => { el.n.value = el.r.value; update(); });
+            el.n.addEventListener('input', () => { el.r.value = el.n.value; update(); });
         }
 
-        sync(elements.amount.number, elements.amount.range);
-        sync(elements.rate.number, elements.rate.range);
-        sync(elements.years.number, elements.years.range);
+        // 全入力項目のイベント設定
+        Object.values(els).forEach(sync);
 
         window.onload = update;
     </script>
