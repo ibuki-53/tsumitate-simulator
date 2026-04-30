@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>生涯資産シミュレーター（積立＆取崩）</title>
+    <title>生涯資産シミュレーター（積立＆取崩） - 5年刻みグラフ版</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -45,7 +45,6 @@
             width: 100%;
         }
         
-        /* サマリー（結果）表示エリア */
         .summary {
             display: flex;
             justify-content: space-around;
@@ -60,7 +59,6 @@
         .with-color { color: var(--secondary); }
         .alert-color { color: #e74c3c; }
 
-        /* 入力エリアのレイアウト（PCは2列、スマホは1列） */
         .input-sections {
             display: grid;
             grid-template-columns: 1fr;
@@ -111,7 +109,6 @@
             appearance: none;
             outline: none;
         }
-        /* スライダーのつまみの色を変える */
         .slider-acc::-webkit-slider-thumb {
             appearance: none; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: var(--primary);
         }
@@ -123,7 +120,6 @@
 <body>
 
     <div class="container">
-        <!-- グラフと結果 -->
         <div class="card">
             <h2>生涯資産シミュレーター（積立＆取崩）</h2>
             <div id="chartWrapper">
@@ -146,10 +142,8 @@
             </div>
         </div>
 
-        <!-- 入力パラメータ -->
         <div class="card input-sections">
             
-            <!-- 積立フェーズ設定 -->
             <div>
                 <div class="section-title acc">▼ 積立フェーズ</div>
                 <div class="input-group">
@@ -175,7 +169,6 @@
                 </div>
             </div>
 
-            <!-- 取崩フェーズ設定 -->
             <div>
                 <div class="section-title with">▼ 取崩フェーズ</div>
                 <div class="input-group">
@@ -205,7 +198,6 @@
     </div>
 
     <script>
-        // DOM要素の取得
         const els = {
             accYears: { n: document.getElementById('accYearsNum'), r: document.getElementById('accYearsRange') },
             accAmount: { n: document.getElementById('accAmountNum'), r: document.getElementById('accAmountRange') },
@@ -223,7 +215,6 @@
         let chart = null;
 
         function update() {
-            // パラメータ取得
             const aY = parseInt(els.accYears.n.value) || 0;
             const aP = parseFloat(els.accAmount.n.value) || 0;
             const aR = (parseFloat(els.accRate.n.value) || 0) / 100 / 12;
@@ -238,7 +229,6 @@
             let balance = 0;
             let depletionYear = null;
 
-            // --- 積立フェーズの計算 ---
             for (let y = 0; y <= aY; y++) {
                 labels.push(`${y}年目`);
                 if (y === 0) {
@@ -246,38 +236,31 @@
                     withData.push(null);
                     continue;
                 }
-                for (let m = 0; m < 12; m++) {
-                    balance = balance * (1 + aR) + aP;
-                }
+                for (let m = 0; m < 12; m++) { balance = balance * (1 + aR) + aP; }
                 accData.push(Math.floor(balance));
-                // 積立の最終年のみ、取崩データのスタート地点として接続する
                 withData.push(y === aY ? Math.floor(balance) : null);
             }
 
             const peakBalance = balance;
 
-            // --- 取崩フェーズの計算 ---
             for (let y = 1; y <= wY; y++) {
                 labels.push(`${aY + y}年目`);
-                
                 if (balance <= 0) {
                     accData.push(null);
                     withData.push(0);
                     continue;
                 }
-
                 for (let m = 0; m < 12; m++) {
                     balance = balance * (1 + wR) - wP;
                     if (balance < 0) {
                         balance = 0;
-                        if (!depletionYear) depletionYear = aY + y; // 初めて枯渇した年を記録
+                        if (!depletionYear) depletionYear = aY + y;
                     }
                 }
                 accData.push(null);
                 withData.push(Math.floor(balance));
             }
 
-            // サマリーの更新
             summary.peak.textContent = Math.floor(peakBalance).toLocaleString() + ' 円';
             summary.final.textContent = Math.floor(balance).toLocaleString() + ' 円';
             
@@ -304,24 +287,8 @@
                 data: {
                     labels: labels,
                     datasets: [
-                        { 
-                            label: '積立フェーズ', 
-                            data: accData, 
-                            borderColor: '#3498db', 
-                            backgroundColor: 'rgba(52, 152, 219, 0.2)', 
-                            fill: true, 
-                            tension: 0.1, 
-                            pointRadius: 0 
-                        },
-                        { 
-                            label: '取崩フェーズ', 
-                            data: withData, 
-                            borderColor: '#e67e22', 
-                            backgroundColor: 'rgba(230, 126, 34, 0.2)', 
-                            fill: true, 
-                            tension: 0.1, 
-                            pointRadius: 0 
-                        }
+                        { label: '積立フェーズ', data: accData, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.1, pointRadius: 0 },
+                        { label: '取崩フェーズ', data: withData, borderColor: '#e67e22', backgroundColor: 'rgba(230, 126, 34, 0.2)', fill: true, tension: 0.1, pointRadius: 0 }
                     ]
                 },
                 options: {
@@ -333,7 +300,20 @@
                         tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString() + '円' } } 
                     },
                     scales: { 
-                        x: { ticks: { color: darkText, font: fontSettings, maxTicksLimit: 15 } },
+                        x: { 
+                            ticks: { 
+                                color: darkText, 
+                                font: fontSettings,
+                                /* ▼ 5年刻みになるようにラベル表示を制御する処理 ▼ */
+                                callback: function(value, index) {
+                                    return index % 5 === 0 ? index + '年目' : null;
+                                },
+                                maxRotation: 0 /* ラベルが斜めになるのを防ぐ */
+                            },
+                            grid: {
+                                display: false /* 縦の補助線を非表示にしてすっきりさせる */
+                            }
+                        },
                         y: { 
                             beginAtZero: true,
                             ticks: { color: darkText, font: fontSettings, callback: v => v.toLocaleString() + '円' } 
@@ -348,7 +328,6 @@
             el.n.addEventListener('input', () => { el.r.value = el.n.value; update(); });
         }
 
-        // 全入力項目のイベント設定
         Object.values(els).forEach(sync);
 
         window.onload = update;
