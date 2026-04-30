@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>生涯資産シミュレーター（積立＆取崩） - 5年刻みグラフ版</title>
+    <title>生涯資産シミュレーター（積立＆取崩） - 5年グリッド版</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --primary: #3498db;     /* 積立カラー */
-            --secondary: #e67e22;   /* 取崩カラー */
+            --primary: #3498db;     
+            --secondary: #e67e22;   
             --bg: #f8fafc;
             --card-bg: #ffffff;
             --text: #1e293b;
@@ -143,7 +143,6 @@
         </div>
 
         <div class="card input-sections">
-            
             <div>
                 <div class="section-title acc">▼ 積立フェーズ</div>
                 <div class="input-group">
@@ -193,7 +192,6 @@
                     <input type="range" id="withRateRange" class="slider-with" min="0" max="15" step="0.1" value="3.0">
                 </div>
             </div>
-
         </div>
     </div>
 
@@ -304,14 +302,20 @@
                             ticks: { 
                                 color: darkText, 
                                 font: fontSettings,
-                                /* ▼ 5年刻みになるようにラベル表示を制御する処理 ▼ */
                                 callback: function(value, index) {
                                     return index % 5 === 0 ? index + '年目' : null;
                                 },
-                                maxRotation: 0 /* ラベルが斜めになるのを防ぐ */
+                                maxRotation: 0 
                             },
                             grid: {
-                                display: false /* 縦の補助線を非表示にしてすっきりさせる */
+                                display: true,
+                                /* 5年刻みの場所だけに薄いグレーの線を引く */
+                                color: function(context) {
+                                    if (context.index % 5 === 0) {
+                                        return '#e2e8f0'; // 薄いグレーの線
+                                    }
+                                    return 'transparent'; // それ以外は透明
+                                }
                             }
                         },
                         y: { 
