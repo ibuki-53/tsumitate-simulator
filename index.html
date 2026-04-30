@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>生涯資産シミュレーター（積立＆取崩） - 5年グリッド版</title>
+    <title>生涯資産シミュレーター（積立＆取崩）</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -227,8 +227,9 @@
             let balance = 0;
             let depletionYear = null;
 
+            // X軸のラベルを作成するときに、最初から「数値」の配列として作成する
             for (let y = 0; y <= aY; y++) {
-                labels.push(`${y}年目`);
+                labels.push(y); // '年目'という文字列ではなく数値として追加
                 if (y === 0) {
                     accData.push(balance);
                     withData.push(null);
@@ -242,7 +243,7 @@
             const peakBalance = balance;
 
             for (let y = 1; y <= wY; y++) {
-                labels.push(`${aY + y}年目`);
+                labels.push(aY + y); // ここも数値として追加
                 if (balance <= 0) {
                     accData.push(null);
                     withData.push(0);
@@ -283,7 +284,7 @@
             chart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: labels, // 中身は数値の配列
                     datasets: [
                         { label: '積立フェーズ', data: accData, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.1, pointRadius: 0 },
                         { label: '取崩フェーズ', data: withData, borderColor: '#e67e22', backgroundColor: 'rgba(230, 126, 34, 0.2)', fill: true, tension: 0.1, pointRadius: 0 }
@@ -295,27 +296,28 @@
                     interaction: { mode: 'index', intersect: false },
                     plugins: { 
                         legend: { labels: { color: darkText, font: fontSettings } },
-                        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString() + '円' } } 
+                        tooltip: { 
+                            callbacks: { 
+                                title: function(context) { return context[0].label + '年目'; },
+                                label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString() + '円' 
+                            } 
+                        } 
                     },
                     scales: { 
                         x: { 
+                            type: 'linear', // X軸を連続した数値の軸として扱う
+                            min: 0,
+                            max: labels[labels.length - 1], // 期間の最大値
                             ticks: { 
                                 color: darkText, 
                                 font: fontSettings,
-                                callback: function(value, index) {
-                                    return index % 5 === 0 ? index + '年目' : null;
-                                },
+                                stepSize: 5, // 5年刻みに強制
+                                callback: function(value) { return value + '年目'; }, // ラベルに「年目」を追加
                                 maxRotation: 0 
                             },
                             grid: {
                                 display: true,
-                                /* 5年刻みの場所だけに薄いグレーの線を引く */
-                                color: function(context) {
-                                    if (context.index % 5 === 0) {
-                                        return '#e2e8f0'; // 薄いグレーの線
-                                    }
-                                    return 'transparent'; // それ以外は透明
-                                }
+                                color: '#e2e8f0' // 縦のグリッド線の色
                             }
                         },
                         y: { 
