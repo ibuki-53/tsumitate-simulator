@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>積立投資シミュレーター - 文字強調版</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #3498db;
+            --secondary: #2ecc71;
+            --danger: #e74c3c;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
+            padding: 20px;
+            max-width: 900px;
+            margin: auto;
+            background-color: var(--bg);
+            color: var(--text);
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            margin-top: 0;
+            color: var(--text);
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+        #chartWrapper {
+            position: relative;
+            height: 350px;
+            width: 100%;
+        }
+        .summary {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .summary-item { text-align: center; }
+        
+        /* ↓ ここを濃く・太く変更しました ↓ */
+        .summary-label { 
+            font-size: 0.95em; 
+            color: var(--text); 
+            font-weight: bold;
+            margin-bottom: 5px; 
+        }
+        /* ↑ 変更ここまで ↑ */
+
+        .summary-value { font-size: 1.3em; font-weight: bold; }
+        
+        .total-color { color: var(--danger); }
+        .principal-color { color: var(--primary); }
+        .interest-color { color: var(--secondary); }
+
+        .input-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .input-group {
+            background: #f1f5f9;
+            padding: 15px;
+            border-radius: 12px;
+        }
+        .input-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .number-input {
+            width: 120px;
+            padding: 8px;
+            font-size: 1em;
+            text-align: right;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            outline: none;
+        }
+        .number-input:focus { border-color: var(--primary); }
+        .input-suffix { margin-left: 5px; font-weight: normal; color: #64748b; }
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #cbd5e1;
+            border-radius: 5px;
+            appearance: none;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card">
+            <h2>積立資産の推移予測</h2>
+            <div id="chartWrapper">
+                <canvas id="simulationChart"></canvas>
+            </div>
+            
+            <div class="summary">
+                <div class="summary-item">
+                    <div class="summary-label">最終積立金額</div>
+                    <div class="summary-value total-color" id="totalValue">0 円</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">元本</div>
+                    <div class="summary-value principal-color" id="principalValue">0 円</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">運用益</div>
+                    <div class="summary-value interest-color" id="interestValue">0 円</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="input-stack">
+                <div class="input-group">
+                    <div class="input-header">
+                        <label>毎月の積立額</label>
+                        <div>
+                            <input type="number" id="amountNumber" class="number-input" value="30000" min="1000" step="1000">
+                            <span class="input-suffix">円</span>
+                        </div>
+                    </div>
+                    <input type="range" id="amountRange" min="1000" max="500000" step="1000" value="30000">
+                </div>
+
+                <div class="input-group">
+                    <div class="input-header">
+                        <label>利回り(年率)</label>
+                        <div>
+                            <input type="number" id="rateNumber" class="number-input" value="5.0" step="0.1" min="0">
+                            <span class="input-suffix">％</span>
+                        </div>
+                    </div>
+                    <input type="range" id="rateRange" min="0" max="20" step="0.1" value="5.0">
+                </div>
+
+                <div class="input-group">
+                    <div class="input-header">
+                        <label>積立期間</label>
+                        <div>
+                            <input type="number" id="yearsNumber" class="number-input" value="20" min="1">
+                            <span class="input-suffix">年</span>
+                        </div>
+                    </div>
+                    <input type="range" id="yearsRange" min="1" max="50" step="1" value="20">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const elements = {
+            amount: { number: document.getElementById('amountNumber'), range: document.getElementById('amountRange') },
+            rate: { number: document.getElementById('rateNumber'), range: document.getElementById('rateRange') },
+            years: { number: document.getElementById('yearsNumber'), range: document.getElementById('yearsRange') }
+        };
+        const summary = {
+            total: document.getElementById('totalValue'),
+            principal: document.getElementById('principalValue'),
+            interest: document.getElementById('interestValue')
+        };
+
+        let chart = null;
+
+        function update() {
+            const P = parseFloat(elements.amount.number.value) || 0;
+            const annualRate = parseFloat(elements.rate.number.value) || 0;
+            const years = parseInt(elements.years.number.value) || 0;
+            const r = annualRate / 100 / 12;
+
+            let labels = [], pData = [], iData = [];
+            for (let y = 0; y <= years; y++) {
+                labels.push(`${y}年`);
+                const m = y * 12;
+                const p = P * m;
+                const t = r === 0 ? p : P * ((Math.pow(1 + r, m) - 1) / r);
+                pData.push(Math.floor(p));
+                iData.push(Math.floor(t - p));
+            }
+
+            summary.total.textContent = Math.floor(pData[years] + iData[years]).toLocaleString() + ' 円';
+            summary.principal.textContent = pData[years].toLocaleString() + ' 円';
+            summary.interest.textContent = iData[years].toLocaleString() + ' 円';
+
+            renderChart(labels, pData, iData);
+        }
+
+        function renderChart(labels, pData, iData) {
+            const ctx = document.getElementById('simulationChart').getContext('2d');
+            if (chart) chart.destroy();
+            
+            const darkTextColor = '#1e293b';
+            const fontSettings = {
+                weight: 'bold',
+                family: "'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif"
+            };
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: '元本', data: pData, borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', fill: true, tension: 0.4, pointRadius: 0 },
+                        { label: '運用益', data: iData, borderColor: '#2ecc71', backgroundColor: 'rgba(46, 204, 113, 0.4)', fill: true, tension: 0.4, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    color: darkTextColor,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { 
+                        legend: {
+                            labels: {
+                                color: darkTextColor,
+                                font: fontSettings
+                            }
+                        },
+                        tooltip: { 
+                            callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toLocaleString() + '円' } 
+                        } 
+                    },
+                    scales: { 
+                        x: {
+                            ticks: {
+                                color: darkTextColor,
+                                font: fontSettings
+                            }
+                        },
+                        y: { 
+                            stacked: true, 
+                            ticks: { 
+                                color: darkTextColor,
+                                font: fontSettings,
+                                callback: v => v.toLocaleString() + '円' 
+                            } 
+                        } 
+                    }
+                }
+            });
+        }
+
+        function sync(num, range) {
+            range.addEventListener('input', () => { num.value = range.value; update(); });
+            num.addEventListener('input', () => { range.value = num.value; update(); });
+        }
+
+        sync(elements.amount.number, elements.amount.range);
+        sync(elements.rate.number, elements.rate.range);
+        sync(elements.years.number, elements.years.range);
+
+        window.onload = update;
+    </script>
+</body>
+</html>
