@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>積立投資シミュレーター</title>
+    <!-- グラフ描画ライブラリ Chart.js の読み込み -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: auto;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .card {
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #2c3e50;
+            text-align: center;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        .summary {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .summary-item {
+            text-align: center;
+        }
+        .summary-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .summary-value {
+            font-size: 1.6em;
+            font-weight: bold;
+        }
+        .total-color { color: #e74c3c; }
+        .principal-color { color: #3498db; }
+        .interest-color { color: #2ecc71; }
+        
+        /* スマートフォン向け調整 */
+        @media (max-width: 600px) {
+            .summary { flex-direction: column; gap: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>積立投資シミュレーター</h2>
+        
+        <div class="input-group">
+            <label for="amountRange">
+                <span>毎月の積立額</span>
+                <span id="amountLabel" class="principal-color">30,000 円</span>
+            </label>
+            <input type="range" id="amountRange" min="1000" max="300000" step="1000" value="30000">
+        </div>
+        
+        <div class="input-group">
+            <label for="rateRange">
+                <span>想定利回り（年率）</span>
+                <span id="rateLabel" class="interest-color">5.0 %</span>
+            </label>
+            <input type="range" id="rateRange" min="0" max="20" step="0.1" value="5.0">
+        </div>
+        
+        <div class="input-group">
+            <label for="yearsRange">
+                <span>積立期間</span>
+                <span id="yearsLabel">20 年</span>
+            </label>
+            <input type="range" id="yearsRange" min="1" max="50" step="1" value="20">
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="summary">
+            <div class="summary-item">
+                <div class="summary-label">最終積立金額</div>
+                <div class="summary-value total-color" id="totalValue">0 円</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">元本</div>
+                <div class="summary-value principal-color" id="principalValue">0 円</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">運用益</div>
+                <div class="summary-value interest-color" id="interestValue">0 円</div>
+            </div>
+        </div>
+        
+        <!-- グラフを描画するキャンバス -->
+        <canvas id="simulationChart"></canvas>
+    </div>
+
+    <script>
+        // DOM要素の取得
+        const amountRange = document.getElementById('amountRange');
+        const rateRange = document.getElementById('rateRange');
+        const yearsRange = document.getElementById('yearsRange');
+        
+        const amountLabel = document.getElementById('amountLabel');
+        const rateLabel = document.getElementById('rateLabel');
+        const yearsLabel = document.getElementById('yearsLabel');
+        
+        const totalValueEl = document.getElementById('totalValue');
+        const principalValueEl = document.getElementById('principalValue');
+        const interestValueEl = document.getElementById('interestValue');
+
+        let chart = null; // グラフのインスタンスを保持する変数
+
+        // カンマ区切りのフォーマット関数
+        const formatCurrency = (num) => Math.floor(num).toLocaleString() + ' 円';
+
+        // シミュレーション計算とグラフ更新を行う関数
+        function updateSimulation() {
+            const P = parseFloat(amountRange.value);     // 毎月の積立額
+            const annualRate = parseFloat(rateRange.value); // 年利(%)
+            const years = parseInt(yearsRange.value);    // 期間(年)
+
+            // ラベルの更新
+            amountLabel.textContent = formatCurrency(P);
+            rateLabel.textContent = annualRate.toFixed(1) + ' %';
+            yearsLabel.textContent = years + ' 年';
+
+            const r = annualRate / 100 / 12; // 月利
+            
+            let labels = [];
+            let principalData = [];
+            let interestData = [];
+
+            // 1年ごとのデータを計算
+            for (let y = 0; y <= years; y++) {
+                labels.push(`${y}年`);
+                const months = y * 12; // 経過月数
+                
+                const currentPrincipal = P * months; // その時点の元本
+                let currentTotal = 0;
+                
+                if (r === 0) {
+                    currentTotal = currentPrincipal;
+                } else {
+                    // 複利計算の公式
+                    currentTotal = P * ((Math.pow(1 + r, months) - 1) / r);
+                }
+                
+                const currentInterest = currentTotal - currentPrincipal; // その時点の運用益
+
+                principalData.push(Math.floor(currentPrincipal));
+                interestData.push(Math.floor(currentInterest));
+            }
+
+            // 最終結果の取得
+            const finalPrincipal = principalData[years];
+            const finalInterest = interestData[years];
+            const finalTotal = finalPrincipal + finalInterest;
+
+            // テキストの更新
+            totalValueEl.textContent = formatCurrency(finalTotal);
+            principalValueEl.textContent = formatCurrency(finalPrincipal);
+            interestValueEl.textContent = formatCurrency(finalInterest);
+
+            // グラフの更新
+            drawChart(labels, principalData, interestData);
+        }
+
+        // 折れ線（エリア）グラフを描画する関数
+        function drawChart(labels, principalData, interestData) {
+            const ctx = document.getElementById('simulationChart').getContext('2d');
+            
+            // 既にグラフが存在する場合は破棄してから再描画（これをしないと重なって表示される）
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line', // 折れ線グラフを指定
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '元本',
+                            data: principalData,
+                            borderColor: '#3498db',
+                            backgroundColor: 'rgba(52, 152, 219, 0.2)', // 面を塗りつぶす色
+                            fill: true, // 面を塗りつぶす
+                            tension: 0.3, // 線のなめらかさ
+                            pointRadius: 0 // データ点の丸を消す
+                        },
+                        {
+                            label: '運用益',
+                            data: interestData,
+                            borderColor: '#2ecc71',
+                            backgroundColor: 'rgba(46, 204, 113, 0.4)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false, // グラフの線上に乗らなくてもツールチップを表示
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false }
+                        },
+                        y: {
+                            stacked: true, // 元本と運用益を積み上げる
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString() + '円';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString() + '円';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // スライダーを動かした時に計算処理を走らせるイベントリスナー
+        amountRange.addEventListener('input', updateSimulation);
+        rateRange.addEventListener('input', updateSimulation);
+        yearsRange.addEventListener('input', updateSimulation);
+
+        // ページ読み込み時に初回の計算・描画を実行
+        window.addEventListener('DOMContentLoaded', updateSimulation);
+    </script>
+</body>
+</html>
